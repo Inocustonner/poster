@@ -24,9 +24,7 @@ def vk_me():
 @ShellFs.argument("--set_alias", "--sa", dest="set_alias",
     help="Creates specifed alias for the session") #TODO make it also capable of renaming
 def vk_sess(**auth_kwargs):
-    global vkapi
-    global user_alias
-    global settings
+    global vkapi, user_alias, settings
     # create session withou alias
     if not auth_kwargs.get('alias'):
         if auth_kwargs.get('login') and auth_kwargs.get('pass'):
@@ -82,9 +80,7 @@ def vk_sess(**auth_kwargs):
 @ShellFs.argument("--update", '-u', action="store_true", default=False,
     help="Sets update flag, so previously loaded info will be cleared")
 def vk_ldfrom(**kwargs):
-    global vkapi
-    global user_alias
-    global settings
+    global vkapi, user_alias, settings
 
     photo_ids, video_ids = [], []
     plda = kwargs.get("plda") or settings.get("DEST_PALBUM")
@@ -124,17 +120,6 @@ def vk_ldfrom(**kwargs):
         fphoto_res.writelines(photo_ids)
         fvideo_res.writelines(video_ids)
     print("All resources were stored successfuly.")
-    
-# @ShellFs.func
-# @ShellFs.argument("--hour", "-h", nargs='+', type=int,
-#     help="Set of hours at what posts need to be postponed.")
-# @ShellFs.argument("--minute", "-m", nargs='+', type=int,
-#     help="Set of minutes for corresponding hours. \
-#         If count of minutes < count of hours, then minute values will be repeated.")
-# @ShellFs.argument("-hr", nargs='+', metavar="HOUR:MINUTE",
-#     help="Set hour-minute pairs.")
-# def vk_postpone(**kwargs):
-#     pass
 
 
 @ShellFs.func
@@ -206,17 +191,69 @@ def vk_postdef(**kwargs):
     settings['POST_TEMPLATES'].update({kwargs['alias'] : post_template})
     cfg.save_user_cfg(user_alias, settings)
 
+
+@ShellFs.func
+@ShellFs.argument("-hm", nargs='+', default=["00:00"], metavar="HH:MM",
+    help="Option specifies hour-minute pairs for posts.")
+@ShellFs.argument("-d", type=int,
+    help="Option specifies day, from what do posts, of for a month.")
+@ShellFs.argument("-m", type=int,
+    help="Options specifies month, from what do posts, of the year.")
+@ShellFs.argument("--nDays", "-nd", dest="ndays", required=True, type=int,
+    help="Number of days to post.")
+@ShellFs.argument("--group", "-g", dest="group", required=True, # for this time it's only for groups
+    help="Id(positive) or alias of the destonation group.")
+def vk_postpone(template_alias, **kwargs):
+    global settings, user_alias, vkapi
+    if template_alias not in settings['POST_TEMPLATES']:
+        raise ValueError(f"No {template_alias} template alias defined")
+
+    time_list = internal.form_time_list(kwargs.get('hm'), kwargs.get('d'), kwargs.get('m'), kwargs.get('ndays'))
+    template = settings['POST_TEMPLATES'][template_alias]
+    # load resources
+    with open(f"{cfg.PHOTO_DIR}/{user_alias}.vklib", 'r') as fpr, \
+        open(f"{cfg.VIDEO_DIR}/{user_alias}.vklib", 'r') as fvr:
+        photo_res = fpr.readlines() #TODO define behavior when out of resource but pattern requiers it
+        photo_res_len = len(photo_res)
+
+        video_res = fvr.readlines()
+        video_res_len = len(video_res)
+
+    #TODO add group aliasing
+    owner_id = -int(kwargs.get('group'))
+    pattern_list = template['PATTERN'].copy()
+    photo_cnt = template['PHOTO_CNT']
+    video_cnt = template['VIDEO_CNT']
+    
+    for i in range(len(time_list)):
+        post_time = time_list[i]
+        pattern = pattern_list[i % len(pattern_list)]
+
+        attachments = []
+        if 'p' in pattern and settings['PHOTO_P'] < photo_res_len - photo_cnt:
+            for i in range(photo_cnt):
+                attachments.append(f"photo{photo_res[settings['PHOTO_P']].rstrip()}")
+                settings['PHOTO_P'] += 1
+
+        if 'v' in pattern and settings['VIDEO_P'] < video_res_len - video_cnt:
+            for i in range(video_cnt):
+                attachments.append(f"video{video_res[settings['VIDEO_P']].rstrip()}")
+                settings['VIDEO_P'] += 1
+
+        vkapi.wall.post(owner_id=owner_id, from_group=True, attachments=','.join(attachments), publish_date=post_time)
+
+    cfg.save_user_cfg(user_alias, settings)
+
+
 @ShellFs.func
 def vk_set_plda(album):
-    global settings
-    global user_alias
+    global settings, user_alias
     settings.update({"DEST_PALBUM" : album.replace('g', '-')})
     cfg.save_user_cfg(user_alias, settings)
 
 
 @ShellFs.func
 def vk_set_vlda(album):
-    global settings
-    global user_alias
+    global settings, user_alias
     settings.update({"DEST_VALBUM" : album.replace('g', '-')})
     cfg.save_user_cfg(user_alias, settings)

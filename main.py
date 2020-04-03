@@ -11,8 +11,9 @@ def q():
 def main():
    while True:
       inp = prompt('>> ').split()
-      getattr(ShellFs, inp[0], 
-         lambda *args, **kwargs: print("No function found"))(inp[1:])
+      if inp:
+         getattr(ShellFs, inp[0], 
+            lambda *args, **kwargs: print("No function found"))(inp[1:])
 
 if __name__ == "__main__":
    main()

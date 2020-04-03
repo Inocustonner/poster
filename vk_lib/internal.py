@@ -3,7 +3,8 @@ import vk_lib.cfg as cfg
 from urllib.parse import urlparse
 import requests
 import io
-
+import time
+from datetime import datetime, timedelta
 def load_from_album(vkapi, album):
     owner_id, album_id = album.split('_')
     count = 1000
@@ -84,3 +85,18 @@ def load_from_urls(vkapi, urls, plda, vlda):
         print(e)
 
     return ids
+
+
+def form_time_list(hms : list, start_day : int, start_month : int, ndays : int):
+    dt = datetime.today()
+    if start_month: dt = dt.replace(month=start_month)
+    if start_day:   dt = dt.replace(day=start_day)
+
+    time_list = []
+    for n in range(ndays):
+        for hm in hms:
+            hr, mn = list(map(int, hm.split(':')))
+            dt = dt.replace(hour=hr, minute=mn)
+            time_list.append(int(time.mktime(dt.timetuple())))
+        dt = dt + timedelta(days=1)
+    return time_list
