@@ -12,6 +12,13 @@ USER_CFG        = f"{CFG_PATH}/users"
 
 ALL_PATHS   = [ CFG_PATH, PHOTO_DIR, VIDEO_DIR, USER_CFG ]
 PATHS       = [ PHOTO_DIR, VIDEO_DIR, USER_CFG ]
+
+POST_TEMPLATE = {
+    "PHOTO_CNT"     : int(),    # cnt of photos that need to be in each post
+    "VIDEO_CNT"     : int(),    # cnt of videos that need to be in each post
+    "PATTERN"       : list(),   # pattern of using resources for the post template
+}
+
 USER_SETTINGS_TEMPLATE = {
     "ACCESS_TOKEN"  : str(),    # must be encoded somehow
     "GROUPS_ALIAS"  : dict(),   # alias for a group id
@@ -19,6 +26,7 @@ USER_SETTINGS_TEMPLATE = {
     "DEST_VALBUM"   : str(),    # dest album_id for video uploading
     "PHOTO_P"       : int(),    # current photo pointer
     "VIDEO_P"       : int(),    # current video pointer
+    "POST_TEMPLATES": dict(),   # list of post templates
 }
 
 def check_paths():

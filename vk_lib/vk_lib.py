@@ -64,6 +64,7 @@ def vk_sess(**auth_kwargs):
 
     else:
         raise ValueError("No satisfying logging arguments were given")
+    print(f"Settings were loaded successfuly.\nAuthorized as {user_alias}.")
 
 
 @ShellFs.func
@@ -90,32 +91,120 @@ def vk_ldfrom(**kwargs):
 
     vlda = kwargs.get("vlda") or settings.get("DEST_VALBUM")
     if kwargs.get('album'):
+        print("Loading resources from album[s]...")
         albums = list(map(lambda x: x.replace('g', '-'), kwargs.get('album')))
         photo_ids.extend(internal.load_from_albums(vkapi, albums))
+        print("Album resources were loaded successfuly.")
     
+    # move all urls from file[s] to kwargs['url']
     if kwargs.get('urlfile'):
+        print("Gettings urls from 'urlfile'")
         for file_ in kwargs.get('urlfile'):
             with open(file_, 'r') as f:
                 kwargs.get('url').extend(f.readlines())
 
     if kwargs.get('url'):
         #TODO add url validation???
-        assert plda, "photo loading album must be set, before loading photos to vk"
+        print("Loading resources from url[s]...")
+        assert plda and vlda, "photo and video loading albums must be set, before uploading to vk"
         ret = internal.load_from_urls(vkapi, kwargs.get('url'), plda, vlda)
         photo_ids.extend(ret["photo"])
         video_ids.extend(ret["video"])
+        print("Resources were loaded successfuly.")
 
     if kwargs.get("update"):
         open_mode = 'w'
     else:
         open_mode = 'a'
 
+    print("Storing resources...")
     # write gained ids to resource files
     with open(f"{cfg.PHOTO_DIR}/{user_alias}.vklib", mode=open_mode) as fphoto_res, \
         open(f"{cfg.VIDEO_DIR}/{user_alias}.vklib", mode=open_mode) as fvideo_res:
         fphoto_res.writelines(photo_ids)
         fvideo_res.writelines(video_ids)
+    print("All resources were stored successfuly.")
     
+# @ShellFs.func
+# @ShellFs.argument("--hour", "-h", nargs='+', type=int,
+#     help="Set of hours at what posts need to be postponed.")
+# @ShellFs.argument("--minute", "-m", nargs='+', type=int,
+#     help="Set of minutes for corresponding hours. \
+#         If count of minutes < count of hours, then minute values will be repeated.")
+# @ShellFs.argument("-hr", nargs='+', metavar="HOUR:MINUTE",
+#     help="Set hour-minute pairs.")
+# def vk_postpone(**kwargs):
+#     pass
+
+
+@ShellFs.func
+@ShellFs.argument("--alias", "-a", dest="alias", required=True,
+    help="Alias for the new template")
+@ShellFs.argument("--owrite", "-ow", dest="owrite", action="store_true",
+    help="If alias was already defined overwrites it")
+@ShellFs.argument("--cntPhotos", "--nphotos", "-np", dest="nPhotos", type=int,
+    help="Number of photos to be added to each post.")
+@ShellFs.argument("--cntVideos", "--nvideos", "-nv", dest="nVideos", type=int,
+    help="Number of videos to be added to each post.")
+@ShellFs.argument("--pattern", nargs='+', metavar="(p|v|pv|vp)*", default=[],
+    help="\
+    Before each post will be postponed he will load resources, that he has stored, according to some pattern. \
+To n-th post will be applied (n %% <patterns_cnt>)-th pattern.\
+Available pattern options :\n\
+    'p' - adds photo resource[s] to post.\n\
+    'v' - adds video resources[s] to post.\n\
+Options can form a sequence so all those, that are in will be used.\
+No resource can be used more than once in each sequence. Amount of resource that will be added specified by corresponding (cnt|n)(resource_name) flag\n")
+def vk_postdef(**kwargs):
+    global user_alias, settings
+
+    #if alias is already defined
+    if kwargs['alias'] in settings['POST_TEMPLATES'] and not kwargs.get('owrite'):
+        print("Current alias is already in use. If you wanted to overwrite this alias, run this instruction with -ow flag")
+        kwargs['alias'] = input("Enter new alias for the template or '--' to stop procedure : ")
+        if kwargs['alias'] == '--':
+            return
+    
+    post_template = cfg.POST_TEMPLATE.copy()
+    nPhotos = kwargs.get('nPhotos')
+    nVideos = kwargs.get('nVideos')
+    if  not (nPhotos or nVideos):
+        # initiate input sequence
+        nPhotos = input("Enter number of photos for each post:\n\t")
+        nVideos = input("Enter number of videos for each post:\n\t")
+    
+    if not (nPhotos or nVideos):
+        raise ValueError("One of resource parameters[photo or video] must be > 0")
+
+    post_template.update({'PHOTO_CNT' : nPhotos, 'VIDEO_CNT' : nVideos})
+    
+    # check whether given pattern is valid according to given PHOTOS_CNT and VIDEO_CNT
+    pattern = kwargs.get('pattern')
+    pattern_token_list = ['p', 'v']
+    # check if pattern wasn't specified, if it wasn't generate one regarding PHOTOS_CNT and VIDEO_CNT
+    if pattern == []:
+        pattern.append('')
+        if nPhotos: pattern[0] += 'p'
+        if nVideos: pattern[0] += 'v'
+    else:
+        # check if all tokens are valid and used only once in each sequence
+        prohibit_tokens = {} # dict of prohibit tokens, where token is the key and the value is reason str
+        if not nPhotos: prohibit_tokens.update({'p' : "Cannot specifiy 'p' option when no photo resource is used"})
+        if not nVideos: prohibit_tokens.update({'v' : "Cannot specifiy 'v' option when no video resource is used"})
+
+        for sequence in pattern:
+            for token in sequence:
+                if token not in pattern_token_list:
+                    raise ValueError(f"Invalid token {token}.")
+                elif sequence.count(token) > 1:
+                    raise ValueError(f"Option '{token}' is used more then once")
+                elif token in prohibit_tokens:
+                    raise ValueError(prohibit_tokens[token])
+
+    post_template.update({'PATTERN' : pattern})
+
+    settings['POST_TEMPLATES'].update({kwargs['alias'] : post_template})
+    cfg.save_user_cfg(user_alias, settings)
 
 @ShellFs.func
 def vk_set_plda(album):
