@@ -219,8 +219,10 @@ def vk_postpone(template_alias, **kwargs):
         video_res = fvr.readlines()
         video_res_len = len(video_res)
 
-    #TODO add group aliasing
-    owner_id = -int(kwargs.get('group'))
+    if kwargs.get('group') in settings['GROUPS_ALIAS']:
+        owner_id = settings['GROUPS_ALIAS'][kwargs.get('group')]
+    else:
+        owner_id = -int(kwargs.get('group'))
     pattern_list = template['PATTERN'].copy()
     photo_cnt = template['PHOTO_CNT']
     video_cnt = template['VIDEO_CNT']
@@ -256,4 +258,10 @@ def vk_set_plda(album):
 def vk_set_vlda(album):
     global settings, user_alias
     settings.update({"DEST_VALBUM" : album.replace('g', '-')})
+    cfg.save_user_cfg(user_alias, settings)
+
+@ShellFs.func
+def vk_set_group_alias(group, alias):
+    global settings, user_alias
+    settings['GROUPS_ALIAS'].update({ alias : -int(group) })
     cfg.save_user_cfg(user_alias, settings)
