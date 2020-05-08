@@ -14,7 +14,7 @@ def vk_me():
 
 @ShellFs.func
 @ShellFs.argument("--login", 
-    help="Email or phone number for vk authorization")
+	help="Email or phone number for vk authorization")
 @ShellFs.argument("--pass",
     help="Password for vk authorization")
 @ShellFs.argument("--token",
@@ -97,7 +97,7 @@ def vk_ldfrom(**kwargs):
         print("Gettings urls from 'urlfile'")
         for file_ in kwargs.get('urlfile'):
             with open(file_, 'r') as f:
-                kwargs.get('url').extend(f.readlines())
+                kwargs.get('url').extend([line.rstrip() for line in f.readlines()])
 
     if kwargs.get('url'):
         #TODO add url validation???
@@ -110,6 +110,8 @@ def vk_ldfrom(**kwargs):
 
     if kwargs.get("update"):
         open_mode = 'w'
+        settings['PHOTO_P'] = 0
+        settings['VIDEO_P'] = 0
     else:
         open_mode = 'a'
 
@@ -226,22 +228,28 @@ def vk_postpone(template_alias, **kwargs):
     pattern_list = template['PATTERN'].copy()
     photo_cnt = template['PHOTO_CNT']
     video_cnt = template['VIDEO_CNT']
-    
+            
     for i in range(len(time_list)):
         post_time = time_list[i]
         pattern = pattern_list[i % len(pattern_list)]
 
         attachments = []
-        if 'p' in pattern and settings['PHOTO_P'] < photo_res_len - photo_cnt:
-            for i in range(photo_cnt):
-                attachments.append(f"photo{photo_res[settings['PHOTO_P']].rstrip()}")
-                settings['PHOTO_P'] += 1
-
-        if 'v' in pattern and settings['VIDEO_P'] < video_res_len - video_cnt:
-            for i in range(video_cnt):
-                attachments.append(f"video{video_res[settings['VIDEO_P']].rstrip()}")
-                settings['VIDEO_P'] += 1
-
+        if 'p' in pattern:
+            if settings['PHOTO_P'] < photo_res_len - photo_cnt:
+                for i in range(photo_cnt):
+                    attachments.append(f"photo{photo_res[settings['PHOTO_P']].rstrip()}")
+                    settings['PHOTO_P'] += 1
+            else:
+                raise ValueError("Not enough photos for posts")
+            
+        if 'v' in pattern:
+            if settings['VIDEO_P'] < video_res_len - video_cnt:
+                for i in range(video_cnt):
+                    attachments.append(f"video{video_res[settings['VIDEO_P']].rstrip()}")
+                    settings['VIDEO_P'] += 1
+            else:
+                raise ValueError("Not enough videos for posts")
+            
         vkapi.wall.post(owner_id=owner_id, from_group=True, attachments=','.join(attachments), publish_date=post_time)
 
     cfg.save_user_cfg(user_alias, settings)

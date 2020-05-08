@@ -15,6 +15,7 @@ def load_from_album(vkapi, album):
         "offset"    : 0,
         "count"     : count,
     }
+
     vk_max_photos = 10000
     iters = vk_max_photos // count # basicaly iters = 10
     ids = []
@@ -48,13 +49,22 @@ def is_video(name):
 
 
 def load_from_url(vkapi, url, plda, vlda):
+    group_id, album_id = plda.split('_')
+    if group_id[0] != '-': group_id = None
+    else: group_id = group_id[1:] # remove '-'
+    
     def load_from_photo_url():
         group_id, album_id = plda.split('_')
         if group_id[0] != '-': group_id = None
         else: group_id = group_id[1:] # remove '-'
 
-        resp = vk_upld.photo(io.BytesIO(requests.get(url).content), album_id, group_id=group_id)
-        return [ "photo", f"{resp[0]['owner_id']}_{resp[0]['id']}\n" ]
+        content_resp = requests.get(url)
+        if (content_resp.status_code == 200):
+            resp = vk_upld.photo(io.BytesIO(content_resp.content), album_id, group_id=group_id)
+            return [ "photo", f"{resp[0]['owner_id']}_{resp[0]['id']}\n" ]
+        else:
+            raise Exception("Response error {0}:\n\t{1}".format(content_resp.status_code, content_resp.json()))
+            print("Invalid response", content_resp.status_code, f"\n\t{content_resp.json()}")
 
     def load_from_video_url():
         group_id, album_id = vlda.split('_')
@@ -62,8 +72,13 @@ def load_from_url(vkapi, url, plda, vlda):
         else: group_id = group_id[1:]
         
         # resp = vk_upld.video(link=url, group_id=group_id, album_id=album_id)
-        resp = vk_upld.video(video_file=io.BytesIO(requests.get(url).content), group_id=group_id, album_id=album_id)
-        return [ "video", f"{resp['owner_id']}_{resp['video_id']}\n" ]
+        content_resp = requests.get(url)
+        if (content_resp.status_code == 200):
+            resp = vk_upld.video(video_file=io.BytesIO(requests.get(url).content), group_id=group_id, album_id=album_id)
+            return [ "video", f"{resp['owner_id']}_{resp['video_id']}\n" ]
+        else:
+            raise Exception("Response error {0}:\n\t{1}".format(content_resp.status_code, content_resp.json()))
+            print("Invalid response", content_resp.status_code, f"\n\t{content_resp.json()}")
 
     name = urlparse(url).path.split('/')[-1]
     vk_upld = vk_api.upload.VkUpload(vkapi)
